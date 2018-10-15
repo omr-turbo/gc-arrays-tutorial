@@ -21,12 +21,7 @@ constexpr std::size_t index(std::size_t i) {
 
 __attribute__((noinline))
 void gc_bench(OMR::GC::RunContext& cx) {
-  OMR::GC::StackRoot<Splash::RefArray> root(cx);
-  root = Splash::allocateRefArray(cx, ROOT_SIZE);
-  for (std::size_t i = 0; i < ITERATIONS; ++i) {
-    auto child = (Splash::AnyArray*)Splash::allocateBinArray(cx, childSize(i));
-    Splash::store(cx, *root, index(i), child);
-  }
+  /// SPLASH TODO
 }
 
 __attribute__((noinline))
