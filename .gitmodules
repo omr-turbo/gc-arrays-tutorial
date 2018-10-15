@@ -1,3 +1,4 @@
 [submodule "third_party/omr"]
 	path = third_party/omr
-	url = https://github.com/eclipse/omr
+	url = https://github.com/rwy0717/omr
+	branch = splash2018
