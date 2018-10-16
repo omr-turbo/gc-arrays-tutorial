@@ -1,9 +1,7 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.11)
 
-project(making-an-object-model
+project(splash2018-gc-arrays
     LANGUAGES CXX C
-    DESCRIPTION "A tutorial on building an object model for the OMR GC"
-    HOMEPAGE_URL "github.com/rwy0717/making-an-object-model"
 )
 
 list(APPEND CMAKE_MODULE_PATH

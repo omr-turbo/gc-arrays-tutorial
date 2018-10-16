@@ -7,14 +7,16 @@
 #include <cstdint>
 #include <cstdlib>
 #include <stdexcept>
+#include <type_traits>
 
 namespace Splash {
 
 /// Round size up to a multiple of alignment.
 /// @returns aligned size
-constexpr std::size_t
-align(std::size_t size, std::size_t alignment)
+constexpr T
+align(T size, T alignment)
 {
+	static_assert(std::is_integral<T>::value, "align only operates on integer types");
 	return (size + alignment - 1) & ~(alignment - 1);
 }
 

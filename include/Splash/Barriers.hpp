@@ -8,23 +8,7 @@
 
 namespace Splash {
 
-/// Return a slot to the handle at I
-inline OMR::GC::RefSlotHandle at(RefArray& array, std::size_t index) {
-  return OMR::GC::RefSlotHandle(&array.data[index]);
-}
-
-/// Store a ref to the slot at index.
-inline void store(OMR::GC::RunContext& cx, RefArray& array, std::size_t index, Ref value) {
-  OMR::GC::store(cx, (Ref)&array, at(array, index), (Ref)value);
-}
-
-inline void store(OMR::GC::RunContext& cx, OMR::GC::Handle<RefArray> array, std::size_t index, Ref value) {
-  OMR::GC::store(cx, (AnyArray*)array.get(), at(*array, index), (AnyArray*)value);
-}
-
-// inline Ref load(OMR::GC::Context& cx, RefArray& array, std::size_t index) {
-// 	return OMR::GC::load(cx, &array, at(array, index));
-// }
+/// SPLASH TODO
 
 } // namespace Splash
 

@@ -2,23 +2,27 @@
 
 In this workshop, you'll be defining simple array-like data structures, and using the OMR GC to automatically manage their memory for you.
 
-## Task -1: Prerequisites and setup (-2 hours)
+## Task -1: Prerequisites and setup (15 minutes)
 
-Ensure that you've cloned the skeleton project recursively:
+You will need:
+- a C++ 11 toolchain (gcc, clang, or msvc)
+- linux, windows, or osx
+- git
+- cmake 3.11+, and a supported backend build system
+
+Before the tutorial you should have cloned this skeleton project:
 
 ```sh
-git clone --recursive https://github.com/rwy0717/making-an-object-model
+git clone --recursive https://github.com/rwy0717/splash2018-gc-arrays
 ```
 
-## Task 0: Implement the array datastructures (45 minutes)
+## Task 0: Implement the array datastructures (30 minutes)
 
-**Add all the code examples in this section to `include/Splash/Arrays.hpp`**
-
-In this task, you will be defining the basic array datastructures, which we will be later garbage collecting. will be using C++ structs to lay out the Arrays in memory. The arrays are required to be simple "standard layout" objects.
+In this task, you will be defining the basic array data-structures, which we will be later garbage collecting. You will be using C++ structs to lay out the Arrays in memory. The arrays are required to be simple "standard layout" objects.
 
 ### The `Splash::AnyArray`, `Splash::Ref`, and `omrobjectptr_t` Types
 
-Forward-declare the `AnyArray` union:
+Forward-declare the `AnyArray` union in `include/Splash/Arrays.hpp`:
 
 ```c++
 union AnyArray;
@@ -26,7 +30,7 @@ union AnyArray;
 
 The type `AnyArray*` is a "pointer-to an array with an unknown type". `AnyArray*` is used to signify that a pointer could refer to _either_ a `RefArray` or a `BinArray`. `AnyArray` is only ever used this way, and can never be actually instantiated. You will be defining this type further down.
 
-Define `Ref`, an alias for `AnyArray*`:
+Define `Ref`, an alias for `AnyArray*`, in `include/Splash/Arrays.hpp`:
 
 ```c++
 using Ref = AnyArray*;
@@ -36,11 +40,11 @@ The `Ref` type is used to indicate a value is a "GC reference". We will be using
 
 ### Implement the object description glue
 
-`glue/omrobjectdescription.hpp` is our first set of "OMR client bindings". This header, provided by the client, defines a set of pointer data types. These are the fundamental types that the OMR GC will use internally, when referring to objects.
+`glue/include/objectdescription.hpp` is our first set of "OMRClient bindings". This header, provided by the client, defines a set of pointer data types. These are the fundamental types that the OMR GC will use internally, when referring to objects.
 
 (glue-code is an older name for client-code)
 
-In `glue/omrobjectdescription.hpp`, add the following code:
+In `glue/include/objectdescription.hpp`, add the following code:
 
 ```c++
 namespace Splash {
@@ -68,61 +72,61 @@ The GC needs every on-heap object to have a valid and fully initialized header. 
 | bytes | Property          |
 |------:|-------------------|
 |     0 | GC metatdata      |
-| 1 - 2 | Unused            |
-|     3 | Kind              |
-| 4 - 7 | length            |
+|     1 | Kind              |
+| 2 - 5 | Length            |
+| 6 - 7 | Unused            |
 
-First, we need a type that represents the type of an array. Define the `Kind` enum:
+First, we need a type that represents the type of an array. Define the `Kind` enum in `include/Splash/Arrays.hpp`:
 
 ```c++
-enum class Kind {
+enum class Kind : std::uint8_t {
 	REF, BIN
 };
 ```
 
-Then, define the `ArrayHeader` struct:
+Then, define the `ArrayHeader` struct in `include/Splash/Arrays.hpp`:
 
 ```c++
 /// Metadata about an Array. Must be the first field of any heap object.
 ///
 /// Encoding:
 ///
-/// Bytes           | Property
-/// ----------------|------------------
-/// 0               | Metadata (08 bits)
-///   1 2           | Padding  (16 bits)
-///       3         | Kind     (08 bits)
-///         4 5 6 7 | Size     (32 bits)
+/// Bytes           | Property | Size | Offset |
+/// ----------------|----------|------|--------|
+/// 0               | Metadata |   08 |     00 |
+///   1             | Kind     |   08 |     08 |
+///     2 3 4 5     | Size     |   32 |     16 |
+///             6 7 | Padding  |   16 |     48 |
 ///
 struct ArrayHeader {
   constexpr ArrayHeader(Kind k, std::uint32_t s) noexcept
-    : value((std::uint64_t(s) << 32) | (std::uint64_t(k) << 24))
+    : value((std::uint64_t(s) << 16) | (std::uint64_t(k) << 8))
   {}
 
   /// The number of elements in this Array. Elements may be bytes or references.
   /// NOT the total size in bytes.
   constexpr std::uint32_t length() const {
-    return std::uint32_t((value >> 32) & 0xFFFFFFFF);
+    return std::uint32_t((value >> 16) & 0xFFFFFFFF);
   }
 
   /// The kind of Array this is: either a RefArray or BinArray
   constexpr Kind kind() const {
-    return Kind((value >> 24) & 0xFF);
+    return Kind((value >> 8) & 0xFF);
   }
 
   std::uint64_t value;
 };
 ```
 
-The OMR GC uses the least-significant byte in the first object for metadata.
+The OMR GC uses the least-significant byte in the first word of an object for tracking internal metadata.
 
 ### The `Splash::BinArray` struct
 
-Now define the `BinArray` struct:
+Now define the `BinArray` struct in `include/Splash/Arrays.hpp`:
 
 ```c++
 struct BinArray {
-  constexpr BinArray(std::size_t nbytes)
+  constexpr BinArray(std::uint32_t nbytes)
     : header(Kind::BIN, nbytes), data() {}
  
   ArrayHeader header;
@@ -134,11 +138,11 @@ As noted above, the `BinArray` must have a header as it's first field. The const
 
 When we create a BinArray, we will "overallocate" the struct, leaving additional memory past the end for actual data storage. The zero-length `data` field can be used to index into this trailing storage.
 
-Define the `binArraySize` helper:
+Define the `binArraySize` helper in `include/Splash/Arrays.hpp`:
 
 ```c++
-constexpr std::size_t binArraySize(std::size_t nbytes) {
-  return OMR::align(sizeof(BinArray) + nbytes, 16);
+constexpr std::size_t binArraySize(std::uint32_t nbytes) {
+  return align(sizeof(BinArray) + nbytes, 16);
 }
 ```
 
@@ -146,14 +150,16 @@ The actual size of the array is calculated by adding the fixed size of the heade
 
 ### The `Splash::RefArray` struct
 
-Define the `RefArray` struct:
+The `RefArray` is layed out very similarly to the `BinArray`. Again, the first element must be the `ArrayHeader`, and storage for the references will be allocated past the end of the struct. The RefArray has some additional member functions which will come in handy when we need to scan the array's references.
+
+Define the `RefArray` struct in `include/Splash/Arrays.hpp`:
 
 ```c++
 struct RefArray {
-  constexpr RefArray(std::size_t nrefs)
+  constexpr RefArray(std::uint32_t nrefs)
     : header(Kind::REF, nrefs), data() {}
 
-  std::size_t length() const { return header.length(); }
+  std::uint32_t length() const { return header.length(); }
 
   /// Returns a pointer to the first slot.
   Ref* begin() { return &data[0]; } 
@@ -166,12 +172,10 @@ struct RefArray {
 };
 ```
 
-The `RefArray` is layed out very similarly to the `BinArray`. Again, the first element must be the `ArrayHeader`, and storage for the references will be allocated past the end of the struct. The RefArray has some additional member functions which will come in handy when we need to scan the array's references.
-
-Define the `refArraySize` helper function:
+Define the `refArraySize` helper function in `include/Splash/Arrays.hpp`:
 
 ```c++
-constexpr std::size_t refArraySize(std::size_t nrefs) {
+constexpr std::size_t refArraySize(std::uint32_t nrefs) {
   return align(sizeof(RefArray) + (sizeof(Ref) * nrefs), 16);
 }
 ```
@@ -180,18 +184,16 @@ constexpr std::size_t refArraySize(std::size_t nrefs) {
 
 You have already forward-declared the `AnyArray` union above. Now that the `RefArray` and `BinArray` types have been defined, you can write the actual definition.
 
-Define the `AnyArray` union:
+Define the `AnyArray` union in `include/Splash/Arrays.hpp`:
 
 ```c++
-struct AnyArray {
-  /// AnyArray is not constructible.
+union AnyArray {
+  // AnyArray can not be constructed
   AnyArray() = delete;
 
-  union {
-    ArrayHeader asHeader;
-    RefArray asRefArray;
-    BinArray asBinArray;
-  };
+  ArrayHeader asHeader;
+  RefArray asRefArray;
+  BinArray asBinArray;
 };
 ```
 
@@ -199,7 +201,7 @@ To prevent users from instantiating the `AnyArray`, the constructor is explicitl
 
 Both the `RefArray` and `BinArray` have valid headers as their first field, which allows us to access the header of an `AnyArray` directly, regardless of what the underlying type actually is.
 
-Define the helper function `kind`, which returns the type of an `AnyArray` by reading the header:
+The helper function `kind` will returns the type of an `AnyArray` by reading the header. Define the function `kind` in `include/Splash/Arrays.hpp`:
 
 ```c++
 /// Find the kind of array by reading from it's header.
@@ -207,78 +209,36 @@ constexpr Kind kind(AnyArray* any) {
   return any->asHeader.kind();
 }
 ```
-Define the helper function `size`, which uses the header to find the total size in bytes of any array:
+
+The helper function `size` will read an array's header to find it's total size, regardless of type. Implement the `size` function in `include/Splash/Arrays.hpp`:
 
 ```c++
 /// Get the total allocation size of an array, in bytes.
 inline std::size_t size(AnyArray* any) noexcept {
+  std::size_t sz = 0;
   switch(kind(any)) {
-    case Kind::REF: return refArraySize(any->asHeader.length());
-    case Kind::BIN: return binArraySize(any->asHeader.length());
-    default: assert(0);
+  case Kind::REF:
+    sz = refArraySize(any->asHeader.length());
+    break;
+  case Kind::BIN:
+    sz = binArraySize(any->asHeader.length());
+    break;
+  default:
+    // unrecognized data!
+    assert(0);
+    break;
   }
+  return sz;
 }
 ```
 
-## Task 1: Implement the `ArrayScanner` (1 hour)
-
-**Add the code in this section to `include/Splash/ArrayScanner.hpp`**
+## Task 1: Implement the `ArrayScanner` (45 minutes)
 
 The RefArray and BinArray types are already implemented. Your task is to implement and test an ArrayScanner class. Implementing the scanner can be surprisingly challenging. Luckily, we only have to do it once.
 
-The object scanner is the primary interface between the collector and your objects. The scanner notifies the GC about where references are in objects, and how they are encoded.
+Check out the api-reference to see how the ObjectScanner interface is intended to work.
 
-The scanner has a small public API:
-
-```c++
-class ArrayScanner {
-public:
-	// In our case, the scanner is default constructible.
-	ArrayScanner() = default;
-
-	// The scanner _must be copyable
-	ArrayScanner(const ArrayScanner&) = default;
-
-	// begin scanning an object
-	template <typename VisitorT>
-	OMR::GC::ScanResult
-	start(VisitorT&& visitor, AnyArray* target, std::size_t todo = SIZE_MAX) noexcept;
-
-	// resume scanning an object
-	template <typename VisitorT>
-	OMR::GC::ScanResult
-	resume(VisitorT&& visitor, std::size_t todo = SIZE_MAX) noexcept;
-};
-```
-
-The scanner's job is to give visitors a handle to each reference-slot in the target object. The handle gives visitors a way to read or write from object-slots. Many GC operations will need to read or write to objects in some way. The OMR GC implements a variety of visitors to perform tasks on objects.
-
-As an example, during a global marking phase, the `MarkingVisitor` will read object's reference slots to find which objects are reachable.
-
-The scanner passes slot handles to the visitor's edge method, summarized below:
-
-``` c++
-template <typename SlotHandle>
-bool VisitorT::edge(void* object, SlotHandle&& handle) noexcept;
-```
-
-The visitor's `edge` member-function returns a bool. If the result is true, scanning can continue normally. However, if the visitor returns `false`, The scanner should pause. This might happen if the collector is perfoming an incremental or concurrent task that needs to be interrupted early. If the scan is paused, the collector may resume scanning the current target by calling `ArrayScanner::resume`. It is the scanner's responsibility to track the target and current scan state.
-
-The most basic slot-handle is the `OMR::GC::RefSlotHandle`, that is, a _handle_ to a _slot_ containing a plain (unencoded) reference. Think of it like a `void**`.  This is the slot handle type you'll be using today. It's possible to use a custom slot-handle type to implement your own reference encoding.
-
-The scanner's result is an `OMR::GC::ScanResult`, duplicated below:
-
-```c++
-struct ScanResult
-{
-	std::size_t bytesScanned;
-	bool complete;
-};
-```
-
-It is the scanner's responsibility to track how many bytes were scanned, and report that amount in the result. If the scan was interrupted before the object was completly scanned, `result.complete` must be false.
-
-The scanner's start and resume API both take a scan budget. If the number of bytes scanned reaches (or exceeds) this budget, the scanner should save it's state and return early. The ScanResult should report `complete` is `false`.
+The most basic slot-handle is the `OMR::GC::RefSlotHandle`, that is, a handle to a slot containing a plain (unencoded) reference. Think of it like a `void**`.  This is the slot handle type you'll be using today. It's possible to use a custom slot-handle type to implement your own reference encoding.
 
 Implement the `ArrayScanner` in `include/ArrayScanner.hpp`:
 
@@ -360,38 +320,15 @@ Add the binding alias to the client code in `include/OMRClient/ObjectScanner.hpp
 using ObjectScanner = ::Splash::ArrayScanner;
 ```
 
-Object Scanner Summary:
+## Task 2: Implement the Array allocators (time 15 minutes)
 
-Exit conditions:
-- iterator has reached end of object
-- bytes scanned i
-- visitor has returned false
-
-Return value:
-- bytes actually scanned
-- whether object has completed scanning.
-
-## Task 2: Implement the Array allocators (time 30 minutes)
-
-**Add the code in this section to `include/Splash/Allocator.hpp`**
-
-The OMR GC allocation APIs you will be using are duplicated below:
-
-```c++
-template <typename T = void, typename Init>
-T* allocate(Context& cx, std::size_t size, Init&& init) noexcept;
-
-template <typename T = void, typename Init>
-T* allocateNonZero(Context& cx, std::size_t size, Init&& init) noexcept;
-```
+Use the OMR GC "object oriented" allocators to instantiate new array objects on the heap. The [api-reference](./api-reference.md) documents these calls.
 
 Each allocator takes a "primitive initializer" function (or function-like object). The initializer is able to clear a newly-allocated object, and put it into a consistent state for the collector to scan. The initializer function may not allocate and may not fail. From an "application" perspective, the object may not be fully initialized.
 
 Every allocation could potentially do some garbage collection work. This is why even objects currently being allocated must be in a scannable state--the GC may attempt to scan it before allocate returns.
 
-### Implement the BinArray allocator
-
-Implement the "primitive initializer" for `BinArray`:
+Implement the "primitive initializer" for `BinArray` in `include/Splash/Allocators.hpp`:
 
 ```c++
 // A function-like object for initializing BinArray allocations
@@ -413,7 +350,7 @@ private:
 
 InitBinArray will install the header, and nothing else.
 
-Implement the `BinArray` allocator:
+Implement the `BinArray` allocator in `include/Splash/Allocators.hpp`:
 
 ```c++
 inline BinArray* allocateBinArray(OMR::GC::Context& cx, std::size_t nbytes) noexcept {
@@ -425,7 +362,7 @@ Because the BinArray's slots are not scanned by the collector, the primitive ini
 
 ### Implement the RefArray allocator
 
-Implement the primitive-initializer for `RefArray`:
+Implement the primitive-initializer for `RefArray` in `include/Splash/Allocators.hpp`:
 
 ```c++
 struct InitRefArray {
@@ -440,10 +377,9 @@ public:
 };
 ```
 
-Again, the initalizer is just creating the header. However, the new array will need it's reference-slots cleared, in order to be safetly walkable. Rather than zero the slots in the initializer, we can allocate the object from pre-zeroed memory. 
-By using the plain `allocate` call, OMR will make the allocation out of zero-initialized memory. 
+Again, the initializer is just creating the header. However, the new array will need it's reference-slots cleared, in order to be safely walkable. Rather than zero the slots in the initializer, we can allocate the object from pre-zeroed memory.  By using the plain `allocate` call, OMR will make the allocation out of zero-initialized memory. 
 
-Implement the `RefArray` allocator:
+Implement the `RefArray` allocator in `include/Splash/Allocators.hpp`:
 
 ```c++
 inline RefArray* allocateRefArray(OMR::GC::Context& cx, std::size_t nrefs) noexcept {
@@ -452,39 +388,53 @@ inline RefArray* allocateRefArray(OMR::GC::Context& cx, std::size_t nrefs) noexc
 ```
 This ensures that the references will be NULL, and the new array is safe to walk.
 
-## Task 4: Implement and run the GC benchmark
+## Task 4: Implement and run the GC benchmark (15 minutes)
 
-**Add this code to `main.cpp`**
+Our benchmark today is extremely simple. The benchmark will allocate a single RefArray with 1000 elements. This is our one root object. Then we'll store BinArrays of varying size into the RefArray at varying indexes, over and over. The RefArray is rooted. This is a toy benchmark, and not representative of how a real application behaves. Regardless, it can still be an interesting exercise.
 
-Implement the GC benchmark:
+Implement the GC benchmark in `main.cpp`:
 
 ```c++
-
-__attribute__((noinline))
 void gc_bench(OMR::GC::RunContext& cx) {
   OMR::GC::StackRoot<Splash::RefArray> root(cx);
   root = Splash::allocateRefArray(cx, ROOT_SIZE);
   for (std::size_t i = 0; i < ITERATIONS; ++i) {
+    // be careful to allocate the child _before_ dereferencing the root.
     auto child = (Splash::AnyArray*)Splash::allocateBinArray(cx, childSize(i));
     root->data[index(i)] = child;
   }
 }
 ```
 
-Compile the project in release mode:
+Compile the project in debug mode, and run the benchmark:
 
 ```bash
-cd $project
+# in splash2018-gc-arrays:
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Debug
+cmake --build .
+./main
+```
 
+The collector can output verbose logs, which you can inspect to see what GC operations are taking place. You should see a large number of global collections due to allocation failures or TLH refresh failures. You'll likely have quite   few issues to sort out :)
+
+Run the benchmark with verbose logs enabled:
+
+```bash
+# in build/
+export OMR_GC_OPTIONS"-Xverbosegclog:stderr"
+./main
+```
+
+ Remember, OMR has been built without optimizations, so you can expect gc performance to be much worse than malloc. Compile the project in release mode, and run the benchmark again:
+
+```bash
+# in splash2018-gc-arrays/
 mkdir build_release
 cd build_release
 cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
-```
-
-Run the benchmark:
-
-```bash
-# in build_release
+export OMR_GC_OPTIONS=""
 ./main
 ```
 
@@ -521,46 +471,40 @@ If you're having crashes, you might use this visitor at the start of every itera
 
 ## Task 3: Enable the scavenger (time 30 minutes)
 
-In OMR, the scavenger is our basic generational collector.
+In OMR, the scavenger is our basic generational collector. This task is to use the scavenger to improve GC time.
 
-Subtasks:
-- Update the Slot accessors to use OMR write barriers to store into objects
-- In OmrConfig.cmake, enable the flag `OMR_GC_MODRON_SCAVENGER`
-- Rebuild the project
-- Rerun the test
-- Enable the verbose GC logs, and watch for scavenge events. They should greatly outnumber global collections.
+Turn on the scavenger compile flag in `OmrConfig.cmake`:
 
-
-### Turn on the scavenger build flag
-
-in `OmrConfig.cmake`, turn on the scavenger compile flag:
 ```cmake
 set(OMR_GC_MODRON_SCAVENGER  ON CACHE INTERNAL "")
 ```
 
-### Implement reference write barriers
+### Barrier all reference stores
 
-**Add this code to `include/Splash/Barrier.hpp`**
+The GC needs to manage a set of remembered objects in old space. We must use a write barrier every time a reference is stored to an object. This will allow us to determine when an edge is created from old-space to new-space.
+
+Start by implementing a helper for building reference slots handles. Define the `at` helper in `include/Splash/Barriers.hpp`:
 
 ```c++
-/// Return a handle to the i'th slot
+/// Return a handle to array.data[index]
 inline OMR::GC::RefSlotHandle at(RefArray& array, std::size_t index) {
   return OMR::GC::RefSlotHandle(&array.data[index]);
 }
+```
 
-/// Store a ref to the slot at index.
+In OMR, there is a `OMR::GC::store` function, which will write a reference using a slot-handle, triggering any needed barriers. Write a wrapper to store, that assigns a reference into a `RefArray` at a given index.
+
+```c++
+/// Store a ref to array->data[index]
 inline void store(OMR::GC::RunContext& cx, RefArray& array,
                   std::size_t index, Ref value) {
   OMR::GC::store(cx, (Ref)&array, at(array, index), value);
 }
 ```
 
-### Modify the benchmark to use the write barriers
-
-Update the benchmark to use our new write-barrier API to update the slots in our root RefArray.
+In `main.cpp`, modify the benchmark to use the new `store` API to assign into the slots of the root RefArray:
 
 ```c++
-__attribute__((noinline))
 void gc_bench(OMR::GC::RunContext& cx) {
   OMR::GC::StackRoot<Splash::RefArray> root(cx);
   root = Splash::allocateRefArray(cx, ROOT_SIZE);
@@ -571,43 +515,36 @@ void gc_bench(OMR::GC::RunContext& cx) {
 }
 ```
 
-Note:  Do not calculate the address of the root object before allocating. The allocation call could collect, and cause the root object to move!
+Note:  Do not dereference the StackRoot` before allocating. The allocation call could collect, and cause the root object to move!
 
 ### Watch the verbose GC logs to see when the collector scavengers
 
-in your shell, enable the scavenger:
+The scavenger is enabled at runtime by setting the GC option `-Xgcpolicy:gencon`. Enable the scavenger and verbose logging, and run main in debug mode:
+
 ```bash
 export OMR_GC_OPTIONS="-Xgcpolicy:gencon -Xverbosegclog:stderr"
-```
-
-run main in debug mode:
-
-```bash
 cd build
 cmake --build .
 ./main
 ```
 
-Can you see the scavenger copying objects? Is the root object in the remembered set by the end of the run?
+* Can you see the scavenger copying objects?
+* Is the root object in the remembered set at the beginning? At the end?
+* How many objects are being copied?
+* Are global collections happening?
 
 ### Run the benchmark in release mode
 
-Rebuild the project in release mode, and rerun the benchmark:
+Rebuild the project in release mode, and rerun the benchmark (with verbose disabled):
 
 ```bash
 cd build_release
 cmake --build .
-```
-
-Run the benchmark (with verbose disabled):
-
-```bash
-# in build_release
 export OMR_GC_OPTIONS="-Xgcpolicy:gencon"
 ./main
 ```
 
-## Task 4: Enable heap compaction (30 minutes)
+## Task 4: Enable heap compaction (10 minutes)
 
 As the mutator executes, objects will be allocated and freed dynamically. As objects are freed, these spaces become "holes" of free memory in the heap. Sometimes, these "holes" are too small to be reused, and live on as fragments of unusable memory. Heap fragmentation is bad, especially for long-running processes: Fragmentation results in:
 
@@ -657,7 +594,7 @@ Now try with both the compactor and scavenger enabled:
 export OMR_GC_OPTIONS="-Xcompactgc -Xgcpolicy:gencon"
 ```
 
-You should see that since very few objects are actually tenured, the effects of the compactor are minimal in our benchmark. However, in a real application, the compactor is critical for managing fragmentation over long runtimes.
+You should see that since very few objects are actually tenured, the effects of the compactor are minimal in our benchmark. However, in a real application, the compactor is critical for managing memory fragmentation for long running processes, like web servers.
 
 ## You're Done!!
 
@@ -671,8 +608,7 @@ There is an issue though, we cannot represent every possible 64bit address.
 
 If we chose to represent references in a 32bit property, we know that the maximum heap address we can represent is 2^32, or 4gib. However, we can play with object alignment to increase that limit dramatically on 64 bit systems.
 
-If we know objects sizes are always a multiple of 2, then every address on the heap must be even, and thus have a zero in the 
-least significant bit. That's one bit that's zero in every valid reference! We can shift the heap addresses right by one bit as we compress, we've effectively doubled the maximum heap addresss we can represent in 32 bits.
+If we know objects sizes are always a multiple of 2, then every address on the heap must be even, and thus have a zero in the least significant bit. That's one bit that's zero in every valid reference! We can shift the heap addresses right by one bit as we compress, we've effectively doubled the maximum heap address we can represent in 32 bits.
 
 The table below shows the relationship between object alignment and maximum address in a 32bit value.
 
@@ -691,4 +627,4 @@ Today, our object alignment is 4 bytes, which gives us a compression shift of 3,
 1. In `RefArray`, make the data an array of `std::uint32_t`
 2. Add the constant COMPRESSED_REF_SHIFT = 4 in `Arrays.hpp`
 3. Have the slot handle helper create a  `OMR::GC::CompressedRefSlotHandle`, with shift 4.
-4. Make the object scanner create compressed ref slothandles.
+4. Make the object scanner create compressed ref slot-handles.
