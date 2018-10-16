@@ -27,6 +27,14 @@
 #include "omrcomp.h"
 #include "omr.h"
 
-// SPLASH TODO
+namespace Splash {
+  union AnyArray;
+}
+
+typedef Splash::AnyArray* languageobjectptr_t;  // object reference, used by langauge
+typedef Splash::AnyArray* omrobjectptr_t;       // object reference, used by OMR internally
+typedef Splash::AnyArray* omrarrayptr_t;        // array reference, used by OMR internally
+typedef uintptr_t fomrobject_t;                 // object-reference field in object
+typedef uintptr_t fomrarray_t;                  // array-reference field in object or array
 
 #endif /* OBJECTDESCRIPTION_H_ */

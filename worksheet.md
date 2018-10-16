@@ -48,7 +48,7 @@ In `glue/include/objectdescription.hpp`, add the following code:
 
 ```c++
 namespace Splash {
-  union AnyArray;
+	union AnyArray;
 }
 
 typedef Splash::AnyArray* languageobjectptr_t;  // object reference, used by langauge
@@ -99,22 +99,22 @@ Then, define the `ArrayHeader` struct in `include/Splash/Arrays.hpp`:
 ///             6 7 | Padding  |   16 |     48 |
 ///
 struct ArrayHeader {
-  constexpr ArrayHeader(Kind k, std::uint32_t s) noexcept
-    : value((std::uint64_t(s) << 16) | (std::uint64_t(k) << 8))
-  {}
+	constexpr ArrayHeader(Kind k, std::uint32_t s) noexcept
+		: value((std::uint64_t(s) << 16) | (std::uint64_t(k) << 8))
+	{}
 
-  /// The number of elements in this Array. Elements may be bytes or references.
-  /// NOT the total size in bytes.
-  constexpr std::uint32_t length() const {
-    return std::uint32_t((value >> 16) & 0xFFFFFFFF);
-  }
+	/// The number of elements in this Array. Elements may be bytes or references.
+	/// NOT the total size in bytes.
+	constexpr std::uint32_t length() const {
+		return std::uint32_t((value >> 16) & 0xFFFFFFFF);
+	}
 
-  /// The kind of Array this is: either a RefArray or BinArray
-  constexpr Kind kind() const {
-    return Kind((value >> 8) & 0xFF);
-  }
+	/// The kind of Array this is: either a RefArray or BinArray
+	 constexpr Kind kind() const {
+		return Kind((value >> 8) & 0xFF);
+	}
 
-  std::uint64_t value;
+	std::uint64_t value;
 };
 ```
 
@@ -126,11 +126,11 @@ Now define the `BinArray` struct in `include/Splash/Arrays.hpp`:
 
 ```c++
 struct BinArray {
-  constexpr BinArray(std::uint32_t nbytes)
-    : header(Kind::BIN, nbytes), data() {}
+	constexpr BinArray(std::uint32_t nbytes)
+		: header(Kind::BIN, nbytes), data() {}
  
-  ArrayHeader header;
-  std::uint8_t data[0];
+	ArrayHeader header;
+	std::uint8_t data[0];
 };
 ```
 
@@ -142,7 +142,7 @@ Define the `binArraySize` helper in `include/Splash/Arrays.hpp`:
 
 ```c++
 constexpr std::size_t binArraySize(std::uint32_t nbytes) {
-  return align(sizeof(BinArray) + nbytes, 16);
+	return align(sizeof(BinArray) + nbytes, 16);
 }
 ```
 
@@ -156,19 +156,19 @@ Define the `RefArray` struct in `include/Splash/Arrays.hpp`:
 
 ```c++
 struct RefArray {
-  constexpr RefArray(std::uint32_t nrefs)
-    : header(Kind::REF, nrefs), data() {}
+	constexpr RefArray(std::uint32_t nrefs)
+		: header(Kind::REF, nrefs), data() {}
 
-  std::uint32_t length() const { return header.length(); }
+	constexpr std::uint32_t length() const { return header.length(); }
 
-  /// Returns a pointer to the first slot.
-  Ref* begin() { return &data[0]; } 
+	/// Returns a pointer to the first slot.
+	Ref* begin() { return &data[0]; } 
 
-  /// Returns a pointer "one-past-the-end" of the slots.
-  Ref* end() { return &data[length()]; }
+	/// Returns a pointer "one-past-the-end" of the slots.
+	Ref* end() { return &data[length()]; }
 
-  ArrayHeader header;
-  Ref data[0];
+	ArrayHeader header;
+	Ref data[0];
 };
 ```
 
@@ -176,7 +176,7 @@ Define the `refArraySize` helper function in `include/Splash/Arrays.hpp`:
 
 ```c++
 constexpr std::size_t refArraySize(std::uint32_t nrefs) {
-  return align(sizeof(RefArray) + (sizeof(Ref) * nrefs), 16);
+	return align(sizeof(RefArray) + (sizeof(Ref) * nrefs), 16);
 }
 ```
 
@@ -188,12 +188,12 @@ Define the `AnyArray` union in `include/Splash/Arrays.hpp`:
 
 ```c++
 union AnyArray {
-  // AnyArray can not be constructed
-  AnyArray() = delete;
+	// AnyArray can not be constructed
+	AnyArray() = delete;
 
-  ArrayHeader asHeader;
-  RefArray asRefArray;
-  BinArray asBinArray;
+	ArrayHeader asHeader;
+	RefArray asRefArray;
+	BinArray asBinArray;
 };
 ```
 
@@ -206,7 +206,7 @@ The helper function `kind` will returns the type of an `AnyArray` by reading the
 ```c++
 /// Find the kind of array by reading from it's header.
 constexpr Kind kind(AnyArray* any) {
-  return any->asHeader.kind();
+	return any->asHeader.kind();
 }
 ```
 
@@ -215,23 +215,50 @@ The helper function `size` will read an array's header to find it's total size, 
 ```c++
 /// Get the total allocation size of an array, in bytes.
 inline std::size_t size(AnyArray* any) noexcept {
-  std::size_t sz = 0;
-  switch(kind(any)) {
-  case Kind::REF:
-    sz = refArraySize(any->asHeader.length());
-    break;
-  case Kind::BIN:
-    sz = binArraySize(any->asHeader.length());
-    break;
-  default:
-    // unrecognized data!
-    assert(0);
-    break;
-  }
-  return sz;
+	std::size_t sz = 0;
+	switch(kind(any)) {
+	case Kind::REF:
+		sz = refArraySize(any->asHeader.length());
+		break;
+	case Kind::BIN:
+		sz = binArraySize(any->asHeader.length());
+		break;
+	default:
+		// unrecognized data!
+		assert(0);
+		break;
+	}
+	return sz;
 }
 ```
 
+### Implement the ObjectModel
+
+The object model is an older glue API the GC relies on for answering questions about objects, such as object size. You need to implement some missing functionality in the object model.
+
+In `glue/include/ObjectModelDelegate.hpp`, implement the following member-functions for `MM_ObjectModelDelegate`:
+
+1. `getObjectHeaderSizeInBytes`:
+```c++
+MMINLINE uintptr_t
+getObjectHeaderSizeInBytes(omrobjectptr_t objectPtr)
+{
+	return sizeof(Splash::ArrayHeader);
+}
+```
+
+2. `getObjectSizeInBytesWithHeader`:
+
+```c++
+MMINLINE uintptr_t
+getObjectSizeInBytesWithHeader(omrobjectptr_t objectPtr)
+{
+	return Splash::size(objectPtr);
+}
+```
+
+
+In glue
 ## Task 1: Implement the `ArrayScanner` (45 minutes)
 
 The RefArray and BinArray types are already implemented. Your task is to implement and test an ArrayScanner class. Implementing the scanner can be surprisingly challenging. Luckily, we only have to do it once.
@@ -254,9 +281,15 @@ public:
 	start(VisitorT&& visitor, AnyArray* any, std::size_t bytesToScan = SIZE_MAX) noexcept {
 		target_ = any;
 		switch(kind(any)) {
-		case Kind::REF: return startRefArray(std::forward<VisitorT>(visitor), bytesToScan);
-		case Kind::BIN: return { .bytesScanned = 0, .complete = true }; // nothing to do.
-		default: assert(0);
+		case Kind::REF:
+			return startRefArray(std::forward<VisitorT>(visitor), bytesToScan);
+		case Kind::BIN:
+			// no references to scan
+			return {0, true};
+		default:
+			// uh-oh: corrupt heap!
+			assert(0);
+			return {0, true};
 		}
 	}
 
@@ -264,10 +297,13 @@ public:
 	OMR::GC::ScanResult
 	resume(VisitorT&& visitor, std::size_t bytesToScan = SIZE_MAX) noexcept {
 		switch(kind(target_)) {
-		case Kind::REF: return resumeRefArray(std::forward<VisitorT>(visitor), bytesToScan);
-		default: assert(0);
+		case Kind::REF:
+			return resumeRefArray(std::forward<VisitorT>(visitor), bytesToScan);
+		default:
+			// uh-oh: corrupt heap!
+			assert(0);
+			return {0, true};
 		}
-		return { .bytesScanned = 0, .complete = true };
 	}
 
 private:
@@ -291,11 +327,11 @@ private:
 		while (true) {
 			if (current_ == end) {
 				// object complete
-				return { .bytesScanned = bytesScanned, .complete = true };
+				return {bytesScanned, true};
 			}
 			if (bytesScanned >= bytesToScan || !cont) {
 				// hit scan budget or paused by visitor
-				return { .bytesScanned = bytesScanned, .complete = false };
+				return {bytesScanned, false};
 			}
 
 			if (*current_ != nullptr) {
@@ -312,6 +348,7 @@ private:
 	AnyArray* target_;
 	Ref* current_;
 };
+
 ```
 
 Add the binding alias to the client code in `include/OMRClient/ObjectScanner.hpp`:
@@ -396,14 +433,15 @@ Implement the GC benchmark in `main.cpp`:
 
 ```c++
 void gc_bench(OMR::GC::RunContext& cx) {
-  OMR::GC::StackRoot<Splash::RefArray> root(cx);
-  root = Splash::allocateRefArray(cx, ROOT_SIZE);
-  for (std::size_t i = 0; i < ITERATIONS; ++i) {
-    // be careful to allocate the child _before_ dereferencing the root.
-    auto child = (Splash::AnyArray*)Splash::allocateBinArray(cx, childSize(i));
-    root->data[index(i)] = child;
-  }
+	OMR::GC::StackRoot<Splash::RefArray> root(cx);
+	root = Splash::allocateRefArray(cx, ROOT_SIZE);
+	for (std::size_t i = 0; i < ITERATIONS; ++i) {
+		// be careful to allocate the child _before_ dereferencing the root.
+		auto child = (Splash::AnyArray*)Splash::allocateBinArray(cx, childSize(i));
+		root->data[index(i)] = child;
+	}
 }
+
 ```
 
 Compile the project in debug mode, and run the benchmark:
@@ -447,23 +485,16 @@ Optionally, you might want to implement a visitor that prints the references in 
 ```c++
 class PrintingVisitor {
 public:
-	explicit PrintingVisitor() 
-
-	explicit ExpectVisitor(std::vector<AnyArray*>&& references)
-		: references(std::move(references)), index(0) {}
+	explicit PrintingVisitor() {
 
 	template <typename SlotHandleT>
 	bool edge(void* object, SlotHandleT slot) {
-		std::cerr << "#(slot" 
+		std::cerr << "#<slot" 
 		          << " :object " << object
 				  << " :address "<< slot.toAddress()
 				  << " :value "  << slot.readReference()
-				  << ")\n";
+				  << ">\n";
 	}
-
-private:
-	std::vector references;
-	std::size_t index;
 };
 ```
 
@@ -479,9 +510,28 @@ Turn on the scavenger compile flag in `OmrConfig.cmake`:
 set(OMR_GC_MODRON_SCAVENGER  ON CACHE INTERNAL "")
 ```
 
+### Teach the scavenger to read the size of objects from the header
+
+The scavenger preserves the first word of an object when moving--this is our ArrayHeader.
+The word is embedded in the `ForwardedHeader`, a special on-heap structure that contains the new address of an object. In some cases, the scavenger will need to determine the size of an object from it's preserved header slot.
+
+Implement the `MM_ObjectModelDelegate` member-function `getForwardedObjectSizeInBytes` in `glue/include/ObjectModelDelegate.hpp`:
+
+```c++
+MMINLINE uintptr_t
+getForwardedObjectSizeInBytes(MM_ForwardedHeader *forwardedHeader)
+{
+  // Construct a temporary array header on the stack by copying the preserved heap slot.
+  // Use the on-stack header to determine the original object's size.
+  Splash::ArrayHeader header((Splash::Kind)-1, 0);
+  header.value = forwardedHeader->getPreservedSlot();
+  return Splash::size((Splash::AnyArray*)&header);
+}
+```
+
 ### Barrier all reference stores
 
-The GC needs to manage a set of remembered objects in old space. We must use a write barrier every time a reference is stored to an object. This will allow us to determine when an edge is created from old-space to new-space.
+The GC needs to manage a set of remembered objects in old space. We must use a write barrier every time a reference is stored to an object. This will allow us to determine when an edge is created from old-space to new-space, and remember the origin object.
 
 Start by implementing a helper for building reference slots handles. Define the `at` helper in `include/Splash/Barriers.hpp`:
 
@@ -492,8 +542,9 @@ inline OMR::GC::RefSlotHandle at(RefArray& array, std::size_t index) {
 }
 ```
 
-In OMR, there is a `OMR::GC::store` function, which will write a reference using a slot-handle, triggering any needed barriers. Write a wrapper to store, that assigns a reference into a `RefArray` at a given index.
+The `OMR::GC::store` function will write a reference to an object and trigger the required barriers. Implement a function that assigns a reference into a `RefArray` at a given index, using `OMR::GC::store`.
 
+Implement `store` in `include/Splash/Barriers.hpp`:
 ```c++
 /// Store a ref to array->data[index]
 inline void store(OMR::GC::RunContext& cx, RefArray& array,
@@ -515,7 +566,7 @@ void gc_bench(OMR::GC::RunContext& cx) {
 }
 ```
 
-Note:  Do not dereference the StackRoot` before allocating. The allocation call could collect, and cause the root object to move!
+Note:  Do not dereference the `StackRoot` before allocating. The allocation call could collect, and cause the root object to move!
 
 ### Watch the verbose GC logs to see when the collector scavengers
 
