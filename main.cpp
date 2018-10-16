@@ -6,9 +6,11 @@
 #include <cstdlib>
 #include <cstdint>
 
+constexpr std::size_t RUN_ITERATIONS =         5;
+
 constexpr std::size_t MAX_CHILD_SIZE =      1000;
-constexpr std::size_t ROOT_SIZE      =      10;
-constexpr std::size_t ITERATIONS     = 100000000;
+constexpr std::size_t ROOT_SIZE      =       100;
+constexpr std::size_t ITERATIONS     =  10000000;
 constexpr std::size_t SLOT_STRIDE    =         3;
 
 constexpr std::size_t childSize(std::size_t i) {
@@ -53,42 +55,49 @@ time(F&& f, Args&&... args)
 	return duration.count();
 }
 
-/// Call f(args) n times, and return the average wallclock duration in seconds
+/// Call f(args) n times, and print a timing report to stdout.
+/// returns the average wallclock duration in seconds
 template <typename F, typename... Args>
 double
-averageTime(const std::size_t n, F&& f, Args&&... args)
+run(const char* name, const std::size_t n, F&& f, Args&&... args)
 {
 	if (n == 0) {
 		throw(std::invalid_argument("n must be greater than zero"));
 	}
 
+	std::cout << "Benchmark: " << name << "\n";
+
 	double sum = 0;
 
 	for(std::size_t i = 0; i < n; ++i) {
-		sum += time(f, std::forward<Args>(args)...);
+		double duration = time(f, std::forward<Args>(args)...);
+		std::cout << "run " << i << ": " << duration << "s\n";
+		sum += duration;
 	}
 
-	return sum / n;
+	double average = sum / n;
+
+	std::cout << "avg:   " << average << "s\n";
+
+	return average;
 
 }
 
 extern "C" int
 main(int argc, char** argv)
 {
-	std::size_t n = 1;
-
 	OMR::Runtime runtime;
 	OMR::GC::System system(runtime);
 	OMR::GC::RunContext context(system);
 
-	double gc_time     = averageTime(n, gc_bench, context);
-	double malloc_time = averageTime(n, malloc_bench);
-	double diff = malloc_time - gc_time;
+	double gcTime = run("gc", RUN_ITERATIONS, gc_bench, context);
 
-	std::cout
-		<< "GC:     " << gc_time     << " seconds" << "\n"
-		<< "malloc: " << malloc_time << " seconds" << "\n"
-		<< "diff:   " << diff        << " seconds" << std::endl;
-	
+	std::cout << "\n";
+
+	double mallocTime = run("malloc", RUN_ITERATIONS, malloc_bench);
+
+	std::cout << "\n"
+	          << "diff:  " << mallocTime - gcTime << "s\n";
+
 	return 0;
 }
