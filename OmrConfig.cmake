@@ -3,6 +3,10 @@
 # This file will enable the GC and it's dependencies (port / thread)
 # as well as a set of experimental GC APIs.
 
+# Tracegen stuff
+
+set(OMR_TRACE_ROOT ${CMAKE_CURRENT_SOURCE_DIR} CACHE INTERNAL "")
+
 # Required OMR Components
 
 set(OMR_PORT   ON CACHE INTERNAL "")
@@ -16,10 +20,9 @@ set(OMR_GC_EXPERIMENTAL_OBJECT_SCANNER ON CACHE INTERNAL "")
 set(OMR_GC_EXPERIMENTAL_ALLOCATOR      ON CACHE INTERNAL "")
 
 # Disable the scavenger and heap compaction
-# Note: If you're following through the workshop, you will eventually be flipping these flags to "ON"
 
-set(OMR_GC_MODRON_SCAVENGER  OFF CACHE INTERNAL "")
-set(OMR_GC_MODRON_COMPACTION OFF CACHE INTERNAL "")
+set(OMR_GC_MODRON_SCAVENGER  OFF CACHE INTERNAL "")  # SPLASH TODO
+set(OMR_GC_MODRON_COMPACTION OFF CACHE INTERNAL "")  # SPLASH TODO
 
 # Default-on options
 

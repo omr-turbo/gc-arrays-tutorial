@@ -5,7 +5,7 @@ project(splash2018-gc-arrays
 )
 
 list(APPEND CMAKE_MODULE_PATH
-	${CMAKE_CURRENT_LIST_DIR}/third_party/omr/cmake/modules/
+	${CMAKE_CURRENT_LIST_DIR}/omr/cmake/modules/
 )
 
 include(OmrPlatform)
@@ -18,11 +18,11 @@ include(./OmrConfig.cmake)
 
 add_definitions(-DUT_DIRECT_TRACE_REGISTRATION)
 
-set(OMR_TRACE_ROOT ${CMAKE_CURRENT_SOURCE_DIR} CACHE INTERNAL "")
+
 
 add_subdirectory(glue)
 
-add_subdirectory(third_party/omr)
+add_subdirectory(omr)
 
 add_library(splash_base INTERFACE)
 
