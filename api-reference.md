@@ -177,12 +177,12 @@ Barriered load-reference and store-references. By using barriered mutator operat
 /// Store a reference to a slot. Barriered.
 template <typename SlotHandleT, typename ValueT>
 void
-store(RunContext &cx, omrobjectptr_t object, SlotHandleT slot, ValueT *value);
+store(Context &cx, omrobjectptr_t object, SlotHandleT slot, ValueT *value);
 
 /// Load a reference from a slot. Barriered.
 template <typename SlotHandleT, typename ValueT>
 ValueT
-load(RunContext &cx, omrobjectptr_t object, SlotHandleT slot);
+load(Context &cx, omrobjectptr_t object, SlotHandleT slot);
 ```
 
 ## Object Scanning
