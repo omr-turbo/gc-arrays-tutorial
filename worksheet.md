@@ -2,6 +2,15 @@
 
 In this workshop, you'll be defining simple array-like data structures, and using the OMR GC to automatically manage their memory for you.
 
+0. Implement the array datastructures (30 minutes)
+1. Implement the array scanner (30 minutes)
+2. Implement the array allocators (15 minutes)
+3. Implement and run the GC benchmark (15 minutes)
+4. Enable heap compaction (10 minutes)
+5. Enable the scavenger (20 minutes)
+
+total expected time: 2 hours
+
 ## Task -1: Prerequisites and setup (15 minutes)
 
 You will need:
@@ -18,7 +27,7 @@ git clone --recursive https://github.com/rwy0717/splash2018-gc-arrays
 
 ## Task 0: Implement the array datastructures (30 minutes)
 
-In this task, you will be defining the basic array data-structures, which we will be later garbage collecting. You will be using C++ structs to lay out the Arrays in memory. The arrays are required to be simple "standard layout" objects.
+In this task, you will be defining the basic array data-structures, which we will be later garbage collecting. You will be using C++ structs to lay out the Arrays in memory. The arrays are required to be simple structs ("standard layout" types in c++ parlance).
 
 ### The `Splash::AnyArray`, `Splash::Ref`, and `omrobjectptr_t` Types
 
@@ -257,9 +266,7 @@ getObjectSizeInBytesWithHeader(omrobjectptr_t objectPtr)
 }
 ```
 
-
-In glue
-## Task 1: Implement the `ArrayScanner` (45 minutes)
+## Task 1: Implement the `ArrayScanner` (30 minutes)
 
 The RefArray and BinArray types are already implemented. Your task is to implement and test an ArrayScanner class. Implementing the scanner can be surprisingly challenging. Luckily, we only have to do it once.
 
@@ -359,9 +366,9 @@ using ObjectScanner = ::Splash::ArrayScanner;
 
 ## Task 2: Implement the Array allocators (time 15 minutes)
 
-Use the OMR GC "object oriented" allocators to instantiate new array objects on the heap. The [api-reference](./api-reference.md) documents these calls.
+Use the OMR GC's object-allocators to instantiate new array objects on the heap. The [api-reference](./api-reference.md) documents these calls.
 
-Each allocator takes a "primitive initializer" function (or function-like object). The initializer is able to clear a newly-allocated object, and put it into a consistent state for the collector to scan. The initializer function may not allocate and may not fail. From an "application" perspective, the object may not be fully initialized.
+Each allocator takes a "primitive initializer" function (or function-like object). The initializer's responsibility is to clear a newly-allocated object's memory, putting it into a consistent state for the collector to scan. The initializer function may not allocate, and may not fail. From an "application" perspective, the object may not yet be fully initialized.
 
 Every allocation could potentially do some garbage collection work. This is why even objects currently being allocated must be in a scannable state--the GC may attempt to scan it before allocate returns.
 
@@ -385,7 +392,7 @@ private:
 }
 ```
 
-InitBinArray will install the header, and nothing else.
+InitBinArray will install the new BinArray's header, and nothing else.
 
 Implement the `BinArray` allocator in `include/Splash/Allocators.hpp`:
 
@@ -395,7 +402,7 @@ inline BinArray* allocateBinArray(OMR::GC::Context& cx, std::size_t nbytes) noex
 }
 ```
 
-Because the BinArray's slots are not scanned by the collector, the primitive initializer does not need to zero the new array's data. We can use `OMR::GC::allocateNonZero` to make allocating bin arrays a little faster.
+The allocator does not need to zero the new array's data, because a BinArray's slots are not scanned by the collector. We can use `OMR::GC::allocateNonZero` to allocate from non-zero-initialized memory, which makes allocating BinArrays faster.
 
 ### Implement the RefArray allocator
 
@@ -414,7 +421,7 @@ public:
 };
 ```
 
-Again, the initializer is just creating the header. However, the new array will need it's reference-slots cleared, in order to be safely walkable. Rather than zero the slots in the initializer, we can allocate the object from pre-zeroed memory.  By using the plain `allocate` call, OMR will make the allocation out of zero-initialized memory. 
+Again, the initializer is just creating the header. However, the new array will need it's reference-slots cleared, in order to be safely walkable. Rather than zero the slots in the initializer, we can allocate the object from pre-zeroed memory. By using the plain `allocate` call, OMR will make the allocation out of zero-initialized memory.
 
 Implement the `RefArray` allocator in `include/Splash/Allocators.hpp`:
 
@@ -425,7 +432,7 @@ inline RefArray* allocateRefArray(OMR::GC::Context& cx, std::size_t nrefs) noexc
 ```
 This ensures that the references will be NULL, and the new array is safe to walk.
 
-## Task 4: Implement and run the GC benchmark (15 minutes)
+## Task 3: Implement and run the GC benchmark (15 minutes)
 
 Our benchmark today is extremely simple. The benchmark will allocate a single RefArray with 1000 elements. This is our one root object. Then we'll store BinArrays of varying size into the RefArray at varying indexes, over and over. The RefArray is rooted. This is a toy benchmark, and not representative of how a real application behaves. Regardless, it can still be an interesting exercise.
 
@@ -500,9 +507,56 @@ public:
 
 If you're having crashes, you might use this visitor at the start of every iteration, to print the slots in the root `RefArray`.
 
-## Task 3: Enable the scavenger (time 30 minutes)
+## Task 3: Enable heap compaction (10 minutes)
 
-In OMR, the scavenger is our basic generational collector. This task is to use the scavenger to improve GC time.
+As the mutator executes, objects will be allocated and freed dynamically. As objects are freed, these spaces become "holes" of free memory in the heap. Sometimes, these "holes" are too small to be reused, and live on as fragments of unusable memory. Heap fragmentation is especially problematic for long-running processes: Fragmentation results in:
+
+1. Increased total memory consumption (holes are a waste of "in use" memory)
+2. Slower applications, by hurting cache locality
+4. Unexpected out-of-memory conditions, when free memory can't be reused.
+
+To combat heap fragmentation, the collector can perform a sliding compaction of live objects, grouping objects together, leaving a contiguous span of free space at the end of the heap.
+
+Your task is to enable the compactor, and measure it's affect on our benchmark:
+
+1. Enable OMR_GC_MODRON_COMPACTOR in OmrConfig.cmake
+2. Recompile the project
+3. Run the benchmark
+4. Turn on verbose GC logs and watch for compact phases
+
+### Turn on the compaction build flag
+
+In `OmrConfig.cmake`, enable the flag:
+
+```cmake
+set(OMR_GC_MODRON_COMPACTION ON  CACHE INTERNAL "")
+```
+
+### Watch the verbose GC logs
+
+Rebuild the project in debug mode, and enable the compactor runtime option:
+
+```bash
+# in build/
+export OMR_GC_OPTIONS="-Xcompactgc -Xverbosegclog:stderr"
+```
+
+You should be able to see the compactor sliding 1001 objects at each global collection.
+
+### Run the benchmark with the compactor
+
+Run the benchmark with the compactor enabled, in release mode:
+
+```bash
+# in build_release/
+export OMR_GC_OPTIONS="-Xcompactgc"
+```
+
+How does the compactor affect our benchmark time?
+
+## Task 5: Enable the scavenger (time 20 minutes)
+
+In OMR, the scavenger is our semispace-copying generational collector. This task is to use the scavenger to improve GC time.
 
 Turn on the scavenger compile flag in `OmrConfig.cmake`:
 
@@ -595,48 +649,7 @@ export OMR_GC_OPTIONS="-Xgcpolicy:gencon"
 ./main
 ```
 
-## Task 4: Enable heap compaction (10 minutes)
-
-As the mutator executes, objects will be allocated and freed dynamically. As objects are freed, these spaces become "holes" of free memory in the heap. Sometimes, these "holes" are too small to be reused, and live on as fragments of unusable memory. Heap fragmentation is bad, especially for long-running processes: Fragmentation results in:
-
-1. Increased total memory consumption (holes are a waste of "in use" memory)
-2. Slower applications, by hurting cache locality
-4. Unexpected out-of-memory conditions, when free memory can't be reused.
-
-To combat heap fragmentation, the collector can perform a sliding compaction of live objects, grouping free space at the end of the heap. This effectively eliminates heap fragmentation, while pushing live objects closer together.
-
-Your task is to enable the compactor, and measure it's affect on our benchmark:
-
-1. Enable OMR_GC_MODRON_COMPACTOR in OmrConfig.cmake
-2. Recompile the project
-3. Run the benchmark
-4. Turn on verbose GC logs and watch for compact phases
-
-### Turn on the compaction build flag
-
-In `OmrConfig.cmake`, enable the flag:
-
-```cmake
-set(OMR_GC_MODRON_COMPACTION ON  CACHE INTERNAL "")
-```
-
-### Watch the verbose GC logs
-
-Rebuild the project in debug mode, and enable the runtime option:
-
-```bash
-# in build/
-export OMR_GC_OPTIONS="-Xcompactgc -Xverbosegclog:stderr"
-```
-
-### Run the benchmark with the compactor
-
-Run the benchmark with only the compactor, in release mode:
-
-```bash
-# in build_release/
-export OMR_GC_OPTIONS="-Xcompactgc"
-```
+### Run with both compaction and scavenger
 
 Now try with both the compactor and scavenger enabled:
 
