@@ -10,7 +10,7 @@ namespace GC {
 /// This header is provided by the client to "bind" that name to the correct implementation.
 /// In our case, it's the ArrayScanner.
 
-using ObjectScanner = ::Splash::ArrayScanner;
+/// using ObjectScanner =  // SPLASH TODO
 
 }  // namespace GC
 }  // namespace OMR
