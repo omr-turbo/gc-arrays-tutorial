@@ -312,13 +312,10 @@ getObjectSizeInBytesWithHeader(Splash::Ref any)
 
 ## Task 2: Implement the `Splash::ArrayScanner` (30 minutes)
 
-Now that you've defined the structure of the array types, and implemented the object size and object-reference client code, it's time to teach the collector how to scan the arrays. Your task is to implement an `ArrayScanner`, which we will bind to the `OMRClient::GC::ObjectScanner` type. The [api-reference](./api-reference.md) documents the requirements of an [`ObjectScanner`](./api-reference.md#object-scanning), as well as the notion of a [`SlotHandle`](./api-reference.md#the-slothandle-concept).
+Now that you've defined the structure of the array types, and implemented the object size and object-reference client code, it's time to teach the collector how to scan the arrays. Your task is to implement an `ArrayScanner`, which we will later bind to the `OMRClient::GC::ObjectScanner` type. The [api-reference](./api-reference.md) documents the requirements of an [`ObjectScanner`](./api-reference.md#object-scanning), as well as the notion of a [`SlotHandle`](./api-reference.md#the-slothandle-concept). Implementing the scanner can be surprisingly challenging. Luckily, we only have to do it once.
 
-In the object scanner, you should pass the
+The object scanner needs to be able to scan any type of array, even though the `BinArray` has no references. The scanner will give the visitor a handle to each reference-slot in the `RefArray`. You can use the basic `OMR::GC::RefSlotHandle` type. The `RefSlotHandle` is a handle to a slot containing a plain (unencoded) `ObjectRef`. Think of it like a `Ref*`. It's possible to use a custom slot-handle type to implement your own reference encoding scheme.
 
-The most basic slot-handle is the `OMR::GC::RefSlotHandle`, that is, a handle to a slot containing a plain (unencoded) reference. Think of it like a `void**`.  This is the slot handle type you'll be using today. It's possible to use a custom slot-handle type to implement your own reference encoding.
-
-Implementing the scanner can be surprisingly challenging. Luckily, we only have to do it once. 
 Implement the `ArrayScanner` in `include/Splash/ArrayScanner.hpp`:
 
 ```c++
@@ -408,7 +405,7 @@ private:
 };
 ```
 
-In the client code, The `ObjectScanner` type is bound to a "no-operation" object scanner, which does just enough to satisfy the compiler. Rewrite this alias to bind to your own `ArrayScanner` in `include/OMRClient/GC/ObjectScanner.hpp`:
+In the client code, The `ObjectScanner` type is already bound to a "no-operation" object scanner, which does just enough to satisfy the compiler. Rewrite this alias to bind to your own `ArrayScanner` in `include/OMRClient/GC/ObjectScanner.hpp`:
 
 ```c++
 // namespace OMRClient::GC
@@ -587,13 +584,6 @@ As an application executes, objects will be allocated and collected dynamically.
 
 To combat heap fragmentation, the collector can perform a sliding compaction of live objects, grouping objects together, leaving a contiguous span of free space at the end of the heap.
 
-Your task is to enable the compactor, and measure it's effect on our benchmark:
-
-1. Enable OMR_GC_MODRON_COMPACTOR in OmrConfig.cmake
-2. Recompile the project
-3. Run the benchmark
-4. Turn on verbose GC logs and watch for compact phases
-
 
 In `OmrConfig.cmake`, enable the compaction compile flag:
 
@@ -611,11 +601,7 @@ export OMR_GC_OPTIONS="-Xcompactgc -Xverbosegclog:stderr"
 ./main
 ```
 
-You should be able to see the compactor sliding 1001 objects at each global collection.
-
-### Run the benchmark with the compactor
-
-Run the benchmark with the compactor enabled, in release mode:
+You should be able to see the compactor sliding 1001 objects at each global collection. Run the benchmark with the compactor enabled, in release mode:
 
 ```bash
 # in the project root
