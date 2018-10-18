@@ -405,7 +405,7 @@ private:
 };
 ```
 
-In the client code, The `ObjectScanner` type is already bound to a "no-operation" object scanner, which does just enough to satisfy the compiler. Rewrite this alias to bind to your own `ArrayScanner` in `include/OMRClient/GC/ObjectScanner.hpp`:
+In the client code, The `ObjectScanner` type is already bound to a "no-operation" object scanner, which does just enough to satisfy the compiler. Rewrite the alias to bind to your own `ArrayScanner` in `include/OMRClient/GC/ObjectScanner.hpp`:
 
 ```c++
 // namespace OMRClient::GC
