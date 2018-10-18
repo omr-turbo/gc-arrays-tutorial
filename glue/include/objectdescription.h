@@ -27,6 +27,13 @@
 #include "omrcomp.h"
 #include "omr.h"
 
-// SPLASH TODO
+#include <OMRClient/GC/ObjectRef.hpp>
+
+typedef OMRClient::GC::ObjectRef languageobjectptr_t;  // object reference, used by langauge
+typedef OMRClient::GC::ObjectRef omrobjectptr_t;       // object reference, used by OMR internally
+typedef OMRClient::GC::ObjectRef omrarrayptr_t;        // array reference, used by OMR internally
+
+typedef uintptr_t fomrobject_t;   // object-reference field in object
+typedef uintptr_t fomrarray_t;    // array-reference field in object or array
 
 #endif /* OBJECTDESCRIPTION_H_ */

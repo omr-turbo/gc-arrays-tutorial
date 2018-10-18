@@ -71,12 +71,11 @@ Object* allocateObject(std::size_t nslots) noxcept {
 * Defined in; `<OMR/GC/StackRoot.hpp>`
 * Namespace: `OMR::GC`
 
-A rooted GC pointer to an instance of `T`.The target/referent must be a managed allocation. This class must be
-stack allocated. StackRoots push themselves onto the linked list of stack roots at construction. When A GC occurs, the sequence of StackRoots will be walked, the referents marked, and the references fixed up. StackRoots have a
-strict LIFO ordering. As such, StackRoots cannot be copied or moved.
+A rooted GC pointer to an instance of `T`. The target/referent must be a managed allocation. This class must be
+stack allocated. StackRoots push themselves onto the linked list of stack roots at construction. When A GC occurs, the sequence of StackRoots will be walked, the referents marked, and the references fixed up. StackRoots have a strict LIFO ordering. As such, StackRoots cannot be copied or moved.
 
 ```c++
-template<typename T>
+template<typename T = void>
 class StackRoot
 {
 public:
@@ -145,6 +144,7 @@ public:
 ```
 
 ### OMR::GC::RefSlotHandle
+
 * Defined in: `<OMR/GC/RefSlotHandle.hpp>`
 * Namespace: `OMR::GC`
 
@@ -221,7 +221,7 @@ The visitor's `edge` member-function returns a bool. If the result is true, scan
 
 The scanner's result is an `OMR::GC::ScanResult`. It is the scanner's responsibility to track how many bytes were scanned, and report that amount in the result. If the scan was interrupted before the object was completely scanned, `result.complete` must be false.
 
-The scanner's start and resume API both take a scan budget. If the number of bytes scanned reaches (or exceeds) this budget, the scanner should save it's state and return early. The ScanResult should report `complete` is `false`.
+The scanner's start and resume API both take a scan budget. If the number of bytes scanned reaches (or exceeds) this budget, the scanner should save it's state and return early. Since the scan was interrupted, the returned ScanResult should indicate that `result.complete` is `false`.
 
 ```c++
 class ObjectScanner {
@@ -240,6 +240,8 @@ public:
 	resume(VisitorT&& visitor, std::size_t todo = SIZE_MAX) noexcept;
 };
 ```
+
+The Object scanner is created through the `ObjectModelDelegate`, which enables the client to pass runtime configuration to the scanner at instantiation.
 
 ### Object Visitor Concept
 

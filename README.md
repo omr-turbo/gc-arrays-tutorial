@@ -1,7 +1,5 @@
 # Managing Arrays with the OMR GC
 
-https://github.com/rwy0717/splash2018-gc-arrays
-
 This the skeleton project participants will be working out of for the ["Managing Arrays" tutorial](https://2018.splashcon.org/event/turbo-2018-tutorial-create-an-object-model-and-get-a-gc-for-free) at [Splash Boston 2018](https://2018.splashcon.org/).
 
 ## Abstract

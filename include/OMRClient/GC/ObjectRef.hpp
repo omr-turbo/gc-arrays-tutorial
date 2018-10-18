@@ -20,18 +20,20 @@
  *  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
  *******************************************************************************/
 
-#if !defined(SPLASH_BARRIERS_HPP_)
-#define SPLASH_BARRIERS_HPP_
+#if !defined(OMRCLIENT_GC_OBJECTREF_HPP_)
+#define OMRCLIENT_GC_OBJECTREF_HPP_
 
-#include <Splash/Arrays.hpp>
-#include <OMR/GC/System.hpp>
-#include <OMR/GC/AccessBarrier.hpp>
-#include <OMR/GC/RefSlotHandle.hpp>
+#include <cstdint>
+#include <cstddef>
 
-namespace Splash {
+namespace OMRClient {
+namespace GC {
 
-// SPLASH TODO
+using ObjectRef = void*; // SPLASH TODO
 
-} // namespace Splash
+using ObjectAddress = std::uintptr_t;
 
-#endif // endif // SPLASH_BARRIERS_HPP_
+} // namespace GC
+} // namespace OMRClient
+
+#endif // OMRCLIENT_GC_OBJECTREF_HPP_
