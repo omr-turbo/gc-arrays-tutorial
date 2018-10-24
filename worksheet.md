@@ -17,6 +17,8 @@ In this workshop, you'll be defining simple array-like data structures, and usin
 
 total expected time: ~2 hours
 
+It's possible to copy-paste all the code samples in this guide, but you'll get a lot more out of it if you try to implement things yourself. Feel free to experiment!
+
 ## Task -1: Prerequisites and setup (15 minutes)
 
 You will need:
@@ -86,7 +88,7 @@ Debug build artifacts are easier to debug interactively, but will execute slower
 
 ## Task 1: Implement the array structures (45 minutes)
 
-In this task, you will be defining the basic array data-structures, which we will be later garbage collecting. You will be using C++ structs to lay out the Arrays in memory. The arrays are required to be simple structs ("standard layout" types in c++ parlance).
+In this task, you will be defining the basic data-structures that make up our arrays.which we will be later garbage collecting. You will be using C++ structs to lay out the Arrays in memory. The arrays are required to be simple structs ("standard layout" types in c++ parlance).
 
 ### Object alignment
 
@@ -177,22 +179,21 @@ constexpr std::size_t binArraySize(std::uint32_t nbytes) {
 }
 ```
 
-### Define the GC-Reference type `AnyArray*`
+### Define the GC-Reference type `AnyArray*`, aka `OMRClient::GC::ObjectRef`
 
-Before you can define the `RefArray` type, you need to define exactly what a reference is. In this object model, a reference is a pointer to either a `RefArray` or a `BinArray`. If `AnyArray` is a union of our two array types, then an `AnyArray*` can be used to signify that a pointer could refer to _either_ a `RefArray` or a `BinArray`. `AnyArray` is only ever used as a pointer-type, and is never be actually instantiated. 
+The `OMRClient::GC::ObjectRef` is used in OMR as the fundamental gc-reference type, and is our first piece of OMR client code.
 
-Forward declare the `AnyArray` union in `include/Splash/Arrays.hpp`:
+In this object model, a reference is a pointer to either a `RefArray` or a `BinArray`. If we define `AnyArray` as a union of our two array types, then an `AnyArray*` can be used to signify that a pointer could refer to _either_ a `RefArray` or a `BinArray`. `AnyArray` is only ever used as a pointer-type, and is never be actually instantiated.
+
+You will be defining the union later, but for now, forward declare the `AnyArray` union in `include/OMRClient/GC/ObjectRef.hpp`:
 
 ``` c++
-// namespace Splash
+namespace Splash {
 union AnyArray;
+}
 ```
 
-You will be defining the union further down.
-
-### Define the `OMRClient::GC::ObjectRef` type
-
-This is our first piece of OMR client code. The collector will use the client's `ObjectRef` type as a fundamental object pointer. In `include/OMRClient/GC/ObjectRef.hpp`, bind the `ObjectRef` type to `Splash::AnyArray`:
+Now, alias the `ObjectRef` typename to `Splash::AnyArray`:
 
 ```c++
 // namespace OMRClient::GC
@@ -200,6 +201,8 @@ using ObjectRef = Splash::AnyArray*;
 ```
 
 ### Define the Splash::RefArray
+
+Now that we've defined what a reference is, we can define `RefArray`.
 
 The `RefArray` is layed out very similarly to the `BinArray`. Again, the first field must be the `ArrayHeader`, and storage for the references will be allocated past the end of the struct. The `RefArray` will store elements of type `Ref`, an alias to `AnyArray*`. The RefArray has some additional member functions which will come in handy when we need to scan the array's references. Define the `RefArray` struct in `include/Splash/Arrays.hpp`:
 
@@ -215,10 +218,10 @@ struct RefArray {
 	std::uint32_t length() const { return header.length(); }
 
 	/// Returns a pointer to the first slot.
-	Ref* begin() { return &data[0]; } 
+	RefSlot* begin() { return &data[0]; }
 
 	/// Returns a pointer "one-past-the-end" of the slots.
-	Ref* end() { return &data[length()]; }
+	RefSlot* end() { return &data[length()]; }
 
 	ArrayHeader header;
 	RefSlot data[];
@@ -230,7 +233,7 @@ Define the `refArraySize` helper function in `include/Splash/Arrays.hpp`:
 ```c++
 // namespace Splash
 constexpr std::size_t refArraySize(std::uint32_t nrefs) {
-	return align(sizeof(RefArray) + (sizeof(Ref) * nrefs), ALIGNMENT);
+	return align(sizeof(RefArray) + (sizeof(RefSlot) * nrefs), ALIGNMENT);
 }
 ```
 
@@ -287,14 +290,14 @@ inline std::size_t size(AnyArray* any) {
 }
 ```
 
-### Implement the "object size" functionality in `OMRClient::GC::ObjectModel`
+### Implement the "object size" functionality in `OMRClient::GC::ObjectModelDelegate`
 
 This is our second piece of client code. The `ObjectModel` gives the collector basic information about manged objects. You need to implement the object-size APIs, In `include/OMRClient/GC/ObjectModelDelegate.hpp`, implement the following member-functions for `ObjectModelDelegate`:
 
 1. `getObjectHeaderSizeInBytes`:
 ```c++
 MMINLINE uintptr_t
-getObjectHeaderSizeInBytes(Splash::Ref any)
+getObjectHeaderSizeInBytes(Splash::AnyArray* any)
 {
 	return sizeof(Splash::ArrayHeader);
 }
@@ -304,7 +307,7 @@ getObjectHeaderSizeInBytes(Splash::Ref any)
 
 ```c++
 MMINLINE uintptr_t
-getObjectSizeInBytesWithHeader(Splash::Ref any)
+getObjectSizeInBytesWithHeader(Splash::AnyArray* any)
 {
 	return Splash::size(any);
 }
@@ -314,7 +317,7 @@ getObjectSizeInBytesWithHeader(Splash::Ref any)
 
 Now that you've defined the structure of the array types, and implemented the object size and object-reference client code, it's time to teach the collector how to scan the arrays. Your task is to implement an `ArrayScanner`, which we will later bind to the `OMRClient::GC::ObjectScanner` type. The [api-reference](./api-reference.md) documents the requirements of an [`ObjectScanner`](./api-reference.md#object-scanning), as well as the notion of a [`SlotHandle`](./api-reference.md#the-slothandle-concept). Implementing the scanner can be surprisingly challenging. Luckily, we only have to do it once.
 
-The object scanner needs to be able to scan any type of array, even though the `BinArray` has no references. The scanner will give the visitor a handle to each reference-slot in the `RefArray`. You can use the basic `OMR::GC::RefSlotHandle` type. The `RefSlotHandle` is a handle to a slot containing a plain (unencoded) `ObjectRef`. Think of it like a `Ref*`. It's possible to use a custom slot-handle type to implement your own reference encoding scheme.
+The object scanner needs to be able to scan any type of array, even though the `BinArray` has no references. The scanner will give the visitor a handle to each reference-slot in the `RefArray`. You can use the basic `OMR::GC::RefSlotHandle` type. The `RefSlotHandle` is a handle to a slot containing a plain (unencoded) `OMRClient::GC::ObjectRef`. Think of it like a `RefSlot` pointer. It's possible to use a custom slot-handle type to implement your own reference encoding scheme.
 
 Implement the `ArrayScanner` in `include/Splash/ArrayScanner.hpp`:
 
@@ -372,7 +375,7 @@ private:
 	template <typename VisitorT>
 	OMR::GC::ScanResult
 	resumeRefArray(VisitorT&& visitor, std::size_t bytesToScan) {
-		Ref* end = target_->asRefArray.end(); 
+		RefSlot* end = target_->asRefArray.end();
 
 		assert(current_ <= end);
 
@@ -401,7 +404,7 @@ private:
 	}
 
 	AnyArray* target_;
-	Ref* current_;
+	RefSlot* current_;
 };
 ```
 
@@ -439,7 +442,7 @@ public:
 
 private:
 	std::size_t nbytes_;
-}
+};
 ```
 
 InitBinArray will install the new BinArray's header, and nothing else.
@@ -723,7 +726,7 @@ You should see that since very few objects are actually tenured, the effects of 
 
 ## You're Done!!
 
-Thank you very much for participating in this guide!
+Thank you very much for participating in this workshop!
 
 ## Bonus Task: Implement compressed references
 
@@ -745,12 +748,10 @@ Alignment (bytes) | N (free bits) | Max Heap Address (gib)
 32                | 5             | 128
 
 
-Today, our arrays are aligned to 16 bytes, which gives us a compression shift of 4, and a maximum heap address of 64 gib.
+Today, our arrays are aligned to 16 bytes, which gives us a compression shift of 4, and a maximum heap address of 64 gib. Note that "maximum address" is not the same as "heap size"! The entirety of the heap must be located beneath the maximum address limit.
 
-Note that "maximum address" is not the same as "heap size"! The entirety of the heap must be located beneath the maximum address limit.
-
-1. In `RefArray`, make the data an array of `std::uint32_t`
-2. Add the constant COMPRESSED_REF_SHIFT = 4 in `Arrays.hpp`
-3. Have the slot handle helper (`Splash::at`) create an `OMR::GC::CompressedRefSlotHandle`, with shift 4.
+1. In `RefArray`, make the `RefSlot` type alias `OMR::GC::CompressedRef`
+2. Add the constant COMPRESSED_REF_SHIFT = 4 to the top of `Arrays.hpp`
+3. Have the slot handle maker (`Splash::at`) create an `OMR::GC::CompressedRefSlotHandle`, with shift 4.
 4. Make the object scanner create compressed ref slot-handles.
-5. Set the maximum heap address on startup
+5. Set the maximum heap address on startup--unfortunately, not yet possible with OMR.
