@@ -6,7 +6,7 @@ In this workshop, you'll be defining simple array-like data structures, and usin
 1. Implement the array structures      (30 minutes)
 	1. ArrayHeader
 	1. BinArray
-	2. Ref
+	2. ObjectRef / AnyArray*
 	3. RefArray
 	4. AnyArray
 2. Implement ArrayScanner              (30 minutes)
@@ -16,8 +16,6 @@ In this workshop, you'll be defining simple array-like data structures, and usin
 6. Enable the scavenger                (10 minutes)
 
 total expected time: ~2 hours
-
-It's possible to copy-paste all the code samples in this guide, but you'll get a lot more out of it if you try to implement things yourself. Feel free to experiment!
 
 ## Task -1: Prerequisites and setup (15 minutes)
 
