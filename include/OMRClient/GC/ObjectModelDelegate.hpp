@@ -225,6 +225,7 @@ public:
 	getForwardedObjectSizeInBytes(MM_ForwardedHeader *forwardedHeader)
 	{
 		// SPLASH TODO!
+		return 0;
 	}
 
 	/**
@@ -238,7 +239,7 @@ public:
 	 * @return true if object holds indirect references to heap objects
 	 */
 	MMINLINE bool
-	hasIndirectObjectReferents(OMR::GC::Context *cx, omrobjectptr_t objectPtr)
+	hasIndirectObjectReferents(OMR_VMThread* thread, omrobjectptr_t objectPtr)
 	{
 		return false;
 	}
