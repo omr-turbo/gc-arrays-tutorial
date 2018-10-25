@@ -395,7 +395,7 @@ private:
 			}
 
 			current_ += 1;
-			bytesScanned += sizeof(Ref);
+			bytesScanned += sizeof(RefSlot);
 		}
 
 		// unreachable
