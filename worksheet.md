@@ -86,7 +86,7 @@ Debug build artifacts are easier to debug interactively, but will execute slower
 
 ## Task 1: Implement the array structures (45 minutes)
 
-In this task, you will be defining the basic data-structures that make up our arrays.which we will be later garbage collecting. You will be using C++ structs to lay out the Arrays in memory. The arrays are required to be simple structs ("standard layout" types in c++ parlance).
+In this task, you will be defining the basic data-structures that make up our arrays, which we will be later garbage collecting. You will be using C++ structs to lay out the Arrays in memory. The arrays are required to be "standard layout" types.
 
 ### Object alignment
 
@@ -259,7 +259,7 @@ Both the `RefArray` and `BinArray` have valid headers as their first field, whic
 // namespace Splash
 
 /// Find the kind of array by reading from it's header.
-constexpr Kind kind(AnyArray* any) {
+inline Kind kind(AnyArray* any) {
 	return any->asHeader.kind();
 }
 ```

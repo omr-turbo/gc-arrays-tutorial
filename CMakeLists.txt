@@ -35,6 +35,11 @@ include(OmrConfig.cmake)
 
 omr_platform_global_setup()
 
+### Subdirectories
+
+add_subdirectory(glue)
+add_subdirectory(omr)
+
 ### Splash Base
 
 add_library(splash_base INTERFACE)
@@ -72,7 +77,3 @@ target_compile_features(main
         cxx_std_11
 )
 
-### Subdirectories
-
-add_subdirectory(glue)
-add_subdirectory(omr)
