@@ -664,8 +664,8 @@ Implement `store` in `include/Splash/Barriers.hpp`:
 ```c++
 /// Store a ref to array->data[index]
 inline void store(OMR::GC::RunContext& cx, RefArray& array,
-                  std::size_t index, Ref value) {
-  OMR::GC::store(cx, (Ref)&array, at(array, index), value);
+                  std::size_t index, RefSlot value) {
+  OMR::GC::store(cx, (AnyArray*)&array, at(array, index), value);
 }
 ```
 
