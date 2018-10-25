@@ -290,7 +290,7 @@ inline std::size_t size(AnyArray* any) {
 
 ### Implement the "object size" functionality in `OMRClient::GC::ObjectModelDelegate`
 
-This is our second piece of client code. The `ObjectModel` gives the collector basic information about manged objects. You need to implement the object-size APIs, In `include/OMRClient/GC/ObjectModelDelegate.hpp`, implement the following member-functions for `ObjectModelDelegate`:
+This is our second piece of client code. The `ObjectModel` gives the collector basic information about manged objects. You need to implement the object-size APIs. In `include/OMRClient/GC/ObjectModelDelegate.hpp`, implement the following member-functions for `ObjectModelDelegate`:
 
 1. `getObjectHeaderSizeInBytes`:
 ```c++
@@ -415,7 +415,7 @@ using ObjectScanner = Splash::ArrayScanner;
 
 ## Task 3: Implement the Array allocators (time 15 minutes)
 
-We've finally fully defined our array objects, and we're ready to start allocating. Use the OMR GC's [object-allocators](./api-reference.md#object-oriented-allocators) to instantiate new array objects on the heap. The [api-reference] documents these calls.
+We've finally fully defined our array objects, and we're ready to start allocating. Use the OMR GC's [object-allocators](./api-reference.md#object-oriented-allocators) to instantiate new array objects on the heap. The [api-reference](./api-reference.md) documents these calls.
 
 Each allocator takes a "primitive initializer" function (or function-like object). The initializer's responsibility is to clear a newly-allocated object's memory, putting it into a consistent state for the collector to scan. The initializer function may not allocate, and may not fail. From an "application" perspective, the object may not yet be fully initialized.
 
