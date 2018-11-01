@@ -290,7 +290,7 @@ inline std::size_t size(AnyArray* any) {
 
 ### Implement the "object size" functionality in `OMRClient::GC::ObjectModelDelegate`
 
-This is our second piece of client code. The `ObjectModel` gives the collector basic information about manged objects. You need to implement the object-size APIs. In `include/OMRClient/GC/ObjectModelDelegate.hpp`, implement the following member-functions for `ObjectModelDelegate`:
+This is our second piece of client code. The `ObjectModel` gives the collector basic information about manged objects. You need to implement the object-size APIs. The object-size must be aligned! In `include/OMRClient/GC/ObjectModelDelegate.hpp`, implement the following member-functions for `ObjectModelDelegate`:
 
 1. `getObjectHeaderSizeInBytes`:
 ```c++
@@ -302,7 +302,6 @@ getObjectHeaderSizeInBytes(Splash::AnyArray* any)
 ```
 
 2. `getObjectSizeInBytesWithHeader`:
-
 ```c++
 MMINLINE uintptr_t
 getObjectSizeInBytesWithHeader(Splash::AnyArray* any)
@@ -413,7 +412,7 @@ In the client code, The `ObjectScanner` type is already bound to a "no-operation
 using ObjectScanner = Splash::ArrayScanner;
 ```
 
-## Task 3: Implement the Array allocators (time 15 minutes)
+## Task 3: Implement the Array allocators (15 minutes)
 
 We've finally fully defined our array objects, and we're ready to start allocating. Use the OMR GC's [object-allocators](./api-reference.md#object-oriented-allocators) to instantiate new array objects on the heap. The [api-reference](./api-reference.md) documents these calls.
 
@@ -526,7 +525,7 @@ export OMR_GC_OPTIONS="-Xverbosegclog:stderr"
 ./main
 ```
 
- Remember, OMR has been built without optimizations, so you can expect gc performance to be much worse than malloc. Compile the project in release mode, and run the benchmark again:
+ Remember, OMR has been built without optimizations, so you can expect gc performance to be much worse than malloc. Compile the project in release mode, and run the benchmark again. Run without verbose logging, which will affect the GC's throughput.
 
 ```bash
 # in the project root
@@ -546,35 +545,37 @@ You might want to implement a visitor that prints the references in a `RefArray`
 // namespace Splash
 class PrintingVisitor {
 public:
-	explicit PrintingVisitor() {}
+	explicit PrintingVisitor() {
+	}
 
 	/// Print data about each edge
 	template <typename SlotHandleT>
 	bool edge(void* object, SlotHandleT slot) {
-		std::cerr << "#<edge" 
-		          << " :parent " << object
-		          << " :slot "   << slot.toAddress()
-		          << " :child "  << slot.readReference()
-		          << ">\n";
+		std::cerr << "  (edge" 
+		          << " :slot "  << slot.toAddress()
+		          << " :child " << slot.readReference()
+		          << ")\n";
 		return true; // always continue
 	}
 };
 ```
 
-To apply the printing visitor to an array, pass the `PrintingVisitor` the scanner you defined above. In `include/Splash/Arrays.hpp`, define the helper `printSlots`:
+To apply the printing visitor to an array, pass the `PrintingVisitor` the scanner you defined above. In `main.cpp`, define the helper `printReferencesInObjects`:
 
 ```c++
 // namespace Splash
-inline void printSlots(AnyArray* target) {
+inline void printReferencesInObject(AnyArray* target) {
+	std::cerr << "(object " << target;
 	Splash::ArrayScanner scanner;
 	OMR::GC::ScanResult result = scanner.start(Splash::PrintingVisitor(), target);
 	assert(result.complete); // should never pause
+	std::cerr << ")" << std::endl;
 }
 ```
 
-If you're having crashes, you might use this visitor at the start of every iteration, to print the slots in the root `RefArray`, and manually ensure every reference is found correctly.
+If you're having crashes, you might use this visitor at the start of every iteration, to print the slots in the root `RefArray`, and manually ensure every reference is found correctly. Remember, a RefArray won't have any children, until you add them, and a BinArray never has any references.
 
-## Task 5: Enable heap compaction (05 minutes)
+## Task 5: Enable heap compaction (5 minutes)
 
 As an application executes, objects will be allocated and collected dynamically. As objects become unused, these spaces become "holes" of free memory in the heap. Sometimes, these holes are too small to be reused, and live on as fragments of unusable memory. Heap fragmentation is especially problematic for long-running processes: Fragmentation results in:
 
@@ -614,7 +615,7 @@ export OMR_GC_OPTIONS="-Xcompactgc"
 
 How does the compactor affect our benchmark time?
 
-## Task 5: Enable the scavenger (time 20 minutes)
+## Task 5: Enable the scavenger (20 minutes)
 
 In OMR, the scavenger is our semispace-copying generational collector. This task is to use the scavenger to improve GC time. The scavenger is a copying collector,
 
