@@ -69,7 +69,6 @@ add_library(splash_core_glue INTERFACE)
 target_sources(splash_core_glue 
 	INTERFACE
 		${CMAKE_CURRENT_SOURCE_DIR}/src/LanguageVMGlue.c
-		${CMAKE_CURRENT_SOURCE_DIR}/src/omrExampleVM.cpp
 )
 
 target_link_libraries(splash_core_glue

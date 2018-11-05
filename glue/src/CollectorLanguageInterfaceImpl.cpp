@@ -42,7 +42,6 @@
 #include "objectdescription.h"
 #include "ObjectModel.hpp"
 #include "omr.h"
-#include "omrExampleVM.hpp"
 #include "omrvm.h"
 #include "OMRVMInterface.hpp"
 #include "ParallelGlobalGC.hpp"

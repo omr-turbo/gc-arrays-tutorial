@@ -41,7 +41,5 @@ GC_ObjectModelDelegate::calculateObjectDetailsForCopy(MM_EnvironmentBase *env, M
 	*objectCopySizeInBytes = getForwardedObjectSizeInBytes(forwardedHeader);
 	*reservedObjectSizeInBytes = env->getExtensions()->objectModel.adjustSizeInBytes(*objectCopySizeInBytes);
 	*hotFieldAlignmentDescriptor = 0;
-
-	//fprintf(stderr, "(copy-details :new-size %lu :old-size %lu)\n", *reservedObjectSizeInBytes, *objectCopySizeInBytes);
 }
 #endif /* defined(OMR_GC_MODRON_SCAVENGER) */
