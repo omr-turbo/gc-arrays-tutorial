@@ -539,10 +539,11 @@ How do the times compare?
 
 ### Optional: Implement a printing visitor
 
-You might want to implement a visitor that prints the references in a `RefArray`. The visitor could be used to validate your object scanner. You can put this visitor at the bottom of  `include/Splash/Arrays.hpp`:
+You might want to implement a visitor that prints the references in a `RefArray`. The visitor could be used to validate your object scanner. You can put this visitor before `gc_bench` in `main.cpp`:
 
 ```c++
-// namespace Splash
+// in main.cpp, no namespace:
+
 class PrintingVisitor {
 public:
 	explicit PrintingVisitor() {
@@ -563,17 +564,24 @@ public:
 To apply the printing visitor to an array, pass the `PrintingVisitor` the scanner you defined above. In `main.cpp`, define the helper `printReferencesInObjects`:
 
 ```c++
-// namespace Splash
-inline void printReferencesInObject(AnyArray* target) {
+// in main.cpp, no namespace:
+
+inline void printReferencesInObject(Splash::AnyArray* target) {
 	std::cerr << "(object " << target;
 	Splash::ArrayScanner scanner;
-	OMR::GC::ScanResult result = scanner.start(Splash::PrintingVisitor(), target);
+	OMR::GC::ScanResult result = scanner.start(PrintingVisitor(), target);
 	assert(result.complete); // should never pause
 	std::cerr << ")" << std::endl;
 }
 ```
 
 If you're having crashes, you might use this visitor at the start of every iteration, to print the slots in the root `RefArray`, and manually ensure every reference is found correctly. Remember, a RefArray won't have any children, until you add them, and a BinArray never has any references.
+
+You can call the print helper like so:
+
+```c++
+printReferencesInObject((Splash::AnyArray*)root.get());
+```
 
 ## Task 5: Enable heap compaction (5 minutes)
 
