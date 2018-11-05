@@ -17,7 +17,7 @@ You will need:
 Before the tutorial you should have cloned this repository:
 
 ```sh
-git clone --recursive https://github.com/rwy0717/splash2018-gc-arrays
+git clone --recursive https://github.com/omr-turbo/gc-arrays-tutorial.git
 ```
 
 Make sure you've cloned the submodules!

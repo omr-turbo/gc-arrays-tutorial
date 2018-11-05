@@ -29,7 +29,7 @@ You will need:
 Before the tutorial you should have cloned this skeleton project:
 
 ```sh
-git clone --recursive https://github.com/rwy0717/splash2018-gc-arrays
+git clone --recursive https://github.com/omr-turbo/gc-arrays-tutorial.git
 ```
 
 Don't forget your laptop charger! You will be running compilations!
