@@ -33,14 +33,14 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace Splash {
-
 /// Round size up to a multiple of alignment.
 /// @returns aligned size
 constexpr std::size_t
 align(std::size_t size, std::size_t alignment) {
 	return (size + alignment - 1) & ~(alignment - 1);
 }
+
+namespace Splash {
 
 /////////////////////////////////////////////////
 // SPLASH TODO:
